@@ -2,9 +2,17 @@
 session_start();
 
 define('EXPECTED_LINE_LENGTH', 4823);
-define('CSV_SEPARATOR', ';');
+define('CSV_SEPARATOR',';');
 
 // --- Modular Functions ---
+
+function debug_to_console($data) {
+    $output = $data;
+    if (is_array($output))
+        $output = implode(',', $output);
+
+    echo "<script>console.log('Debug Objects: " . $output . "' );</script>";
+}
 
 function loadSchemaFromCsv(string $filepath): array {
     $schema = [];
@@ -148,6 +156,7 @@ function processTxtFile(string $txtFilepath, array $schema): array {
     }
 
     $handle = fopen($txtFilepath, 'r');
+    // file_put_contents('php://stderr', print_r($txtFilepath, TRUE));
     if (!$handle) {
         return ['rows' => [], 'headers' => []];
     }
@@ -295,7 +304,7 @@ function handleMerge(array $filesToMerge): array {
          return ['success' => false, 'errors' => ['No valid files to merge.']];
     }
 
-    $outFilename = 'merged_' . date('Ymd_His') . '.txt';
+    $outFilename = 'DEFINITIVI_' . date('Ymd_His') . '.txt';
     $outPath = $dir . DIRECTORY_SEPARATOR . $outFilename;
 
     $outHandle = @fopen($outPath, 'w');
@@ -320,21 +329,6 @@ function handleMerge(array $filesToMerge): array {
     return ['success' => true, 'message' => "Files successfully merged into: EditedTXT/" . $outFilename];
 }
 
-function deleteRowsByIds(array &$rows, array $idsToDelete): void {
-    if (empty($idsToDelete) || empty($rows)) {
-        return;
-    }
-    
-    $lookup = array_flip($idsToDelete);
-    
-    $rows = array_filter($rows, function($row) use ($lookup) {
-        $cmp = trim($row['columns']['EER_PRATICA_CMP']['value'] ?? '');
-        return !isset($lookup[$cmp]);
-    });
-    
-    $rows = array_values($rows);
-}
-
 // --- Main Controller ---
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -351,13 +345,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 header('Content-Type: text/csv; charset=utf-8');
                 header('Content-Disposition: attachment; filename="export.csv"');
                 $output = fopen('php://output', 'w');
-                fputcsv($output, $_SESSION['headers'], CSV_SEPARATOR);
+                fputcsv($output, $_SESSION['headers'], CSV_SEPARATOR,'"','\\');
                 foreach ($_SESSION['rows'] as $row) {
                     $rowData = [];
                     foreach ($_SESSION['headers'] as $header) {
                         $rowData[] = $row['columns'][$header]['value'] ?? '';
                     }
-                    fputcsv($output, $rowData, CSV_SEPARATOR);
+                    fputcsv($output, $rowData, CSV_SEPARATOR,'"','\\');
                 }
                 fclose($output);
                 exit;
@@ -375,25 +369,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($_POST['action'] === 'merge_txt') {
             $filesToMerge = $_POST['merge_files'] ?? [];
             $_SESSION['merge_result'] = handleMerge($filesToMerge);
-            header("Location: " . $_SERVER['PHP_SELF']);
-            exit;
-        }
-
-        if ($_POST['action'] === 'delete_manual_ids') {
-            if (isset($_SESSION['rows']) && !empty($_POST['manual_ids'])) {
-                $rawIds = explode(';', $_POST['manual_ids']);
-                $idsToDelete = array_filter(array_map('trim', $rawIds), function($v) { return $v !== ''; });
-                deleteRowsByIds($_SESSION['rows'], $idsToDelete);
-            }
-            header("Location: " . $_SERVER['PHP_SELF']);
-            exit;
-        }
-
-        if ($_POST['action'] === 'delete_selected_rows') {
-            if (isset($_SESSION['rows']) && !empty($_POST['selected_rows'])) {
-                $idsToDelete = array_filter(array_map('trim', $_POST['selected_rows']), function($v) { return $v !== ''; });
-                deleteRowsByIds($_SESSION['rows'], $idsToDelete);
-            }
             header("Location: " . $_SERVER['PHP_SELF']);
             exit;
         }
@@ -425,7 +400,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-$hasData = isset($_SESSION['rows']);
+$hasData = isset($_SESSION['rows']) && !empty($_SESSION['rows']);
 $headers = $_SESSION['headers'] ?? [];
 $rows = $_SESSION['rows'] ?? [];
 $debugLogs = $_SESSION['debug_logs'] ?? [];
@@ -452,7 +427,7 @@ if (is_dir($editedTxtDir)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dynamic Fixed-Width TXT File Visualizer</title>
+    <title>Dynamic TXT File Visualizer</title>
     <style>
         body { font-family: sans-serif; line-height: 1.4; color: #333; margin: 20px; }
         .pre-wrap { white-space: pre; font-family: monospace; }
@@ -465,41 +440,30 @@ if (is_dir($editedTxtDir)) {
         .btn-action { margin-left: 10px; padding: 5px 10px; }
         .file-list { max-height: 150px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; background: #fff; }
         .file-list label { display: block; margin-bottom: 5px; cursor: pointer; }
-        .deletion-box { border-top: 1px solid #ccc; margin-top: 15px; padding-top: 15px; }
     </style>
 </head>
 <body>
 
-    <h2>PHP Dynamic Fixed-Width TXT File Visualizer</h2>
+    <h2>Dynamic TXT File Visualizer</h2>
 
     <div class="container">
         <form method="POST" enctype="multipart/form-data">
             <div style="margin-bottom: 10px;">
-                <label for="txt_file"><strong>Step 1: Upload TXT File (4823 chars per line):</strong></label><br>
+                <label for="txt_file"><strong>Step 1: Aggiungi il file TXT:</strong></label><br>
                 <input type="file" name="txt_file" id="txt_file" accept=".txt" required>
-                <p style="font-size: 0.9em; color: #555;"><em>Note: The schema will be automatically loaded from 'Rules.csv' located in the server directory. Uploading a new TXT file will reset the current view.</em></p>
+                <!-- <p style="font-size: 0.9em; color: #555;"><em>Note: The schema will be automatically loaded from 'Rules.csv' located in the server directory. Uploading a new TXT file will reset the current view.</em></p> -->
             </div>
-            <button type="submit">Upload and Parse TXT</button>
-            <?php if ($hasData && !empty($rows)): ?>
-                <button type="submit" name="action" value="clear_session" formnovalidate class="btn-action">Clear Data</button>
-                <button type="submit" name="action" value="export_csv" formnovalidate class="btn-action">Export CSV</button>
+            <button type="submit">Carica TXT</button>
+            <?php if ($hasData): ?>
+                <button type="submit" name="action" value="clear_session" formnovalidate class="btn-action">Ripulisci i dati</button>
+                <button type="submit" name="action" value="export_csv" formnovalidate class="btn-action">Esporta il CSV</button>
             <?php endif; ?>
         </form>
-
-        <?php if ($hasData && !empty($rows)): ?>
-            <div class="deletion-box">
-                <form method="POST">
-                    <label for="manual_ids"><strong>Bulk Deletion by ID (EER_PRATICA_CMP):</strong></label><br>
-                    <input type="text" id="manual_ids" name="manual_ids" placeholder="Enter IDs separated by ;" style="width: 300px; padding: 4px;" required>
-                    <button type="submit" name="action" value="delete_manual_ids">Delete by IDs</button>
-                </form>
-            </div>
-        <?php endif; ?>
     </div>
 
     <?php if ($hasData): ?>
         
-        <?php if (!empty($debugLogs)): ?>
+        <!-- <?php if (!empty($debugLogs)): ?>
             <div class="debug-container">
                 <h3>Enrichment Debug Logs</h3>
                 <div style="max-height: 200px; overflow-y: auto;">
@@ -508,95 +472,79 @@ if (is_dir($editedTxtDir)) {
                     <?php endforeach; ?>
                 </div>
             </div>
-        <?php endif; ?>
+        <?php endif; ?> -->
 
         <hr>
         
-        <h3>Parsed Data</h3>
-        <?php if (empty($rows)): ?>
-            <p>No valid data rows found to display. The table is empty.</p>
-        <?php else: ?>
-            <form method="POST">
-                <div style="overflow-x: auto; max-height: 500px; margin-bottom: 10px;">
-                    <table border="1" cellpadding="5" cellspacing="0">
-                        <thead>
-                            <tr>
-                                <th>Select</th>
-                                <?php foreach ($headers as $header): ?>
-                                    <th><?php echo htmlspecialchars($header); ?></th>
-                                <?php endforeach; ?>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($rows as $row): ?>
-                                <?php $praticaCmp = trim($row['columns']['EER_PRATICA_CMP']['value'] ?? ''); ?>
-                                <tr>
-                                    <td style="text-align: center;">
-                                        <?php if ($praticaCmp !== ''): ?>
-                                            <input type="checkbox" name="selected_rows[]" value="<?php echo htmlspecialchars($praticaCmp); ?>">
-                                        <?php endif; ?>
-                                    </td>
-                                    <?php foreach ($headers as $header): ?>
-                                        <?php 
-                                            $cellData = $row['columns'][$header] ?? ['value' => '', 'has_error' => true];
-                                            $style = $cellData['has_error'] ? 'color: red;' : '';
-                                        ?>
-                                        <td class="pre-wrap" <?php if ($style) echo 'style="' . $style . '"'; ?>><?php echo htmlspecialchars($cellData['value']); ?></td>
-                                    <?php endforeach; ?>
-                                </tr>
+        <h3>Dati Elaborati</h3>
+        <div style="overflow-x: auto; max-height: 500px; margin-bottom: 30px;">
+            <table border="1" cellpadding="5" cellspacing="0">
+                <thead>
+                    <tr>
+                        <?php foreach ($headers as $header): ?>
+                            <th><?php echo htmlspecialchars($header); ?></th>
+                        <?php endforeach; ?>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($rows as $row): ?>
+                        <tr>
+                            <?php foreach ($headers as $header): ?>
+                                <?php 
+                                    $cellData = $row['columns'][$header] ?? ['value' => '', 'has_error' => true];
+                                    $style = $cellData['has_error'] ? 'color: red;' : '';
+                                ?>
+                                <td class="pre-wrap" <?php if ($style) echo 'style="' . $style . '"'; ?>><?php echo htmlspecialchars($cellData['value']); ?></td>
                             <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="container">
+            <form method="POST" enctype="multipart/form-data">
+                <div style="margin-bottom: 10px;">
+                    <label for="csv_enrich_file"><strong>Step 2: Aggiungi il file CSV con esiti e note:</strong></label><br>
+                    <input type="file" name="csv_enrich_file" id="csv_enrich_file" accept=".csv" required>
+                    <!-- <p style="font-size: 0.9em; color: #555;"><em>Upload a pipe-separated (|) CSV file to enrich the currently displayed table data.</em></p> -->
                 </div>
-                <button type="submit" name="action" value="delete_selected_rows" style="margin-bottom: 30px;">Delete Selected Rows</button>
+                <button type="submit">Carica CSV</button>
             </form>
-        <?php endif; ?>
+        </div>
 
-        <?php if (!empty($rows)): ?>
-            <div class="container">
-                <form method="POST" enctype="multipart/form-data">
-                    <div style="margin-bottom: 10px;">
-                        <label for="csv_enrich_file"><strong>Step 2: Upload CSV Enrichment File (Optional):</strong></label><br>
-                        <input type="file" name="csv_enrich_file" id="csv_enrich_file" accept=".csv" required>
-                        <p style="font-size: 0.9em; color: #555;"><em>Upload a semicolon-separated (;) CSV file to enrich the currently displayed table data.</em></p>
+        <div class="container">
+            <h3>Step 3: Esporta la tabella in TXT</h3>
+            
+            <?php if ($exportResult !== null): ?>
+                <?php if ($exportResult['success']): ?>
+                    <div class="success-msg">
+                        <strong>Success:</strong> <?php echo htmlspecialchars($exportResult['message']); ?>
                     </div>
-                    <button type="submit">Enrich Data</button>
-                </form>
-            </div>
-
-            <div class="container">
-                <h3>Step 3: Export to TXT</h3>
-                
-                <?php if ($exportResult !== null): ?>
-                    <?php if ($exportResult['success']): ?>
-                        <div class="success-msg">
-                            <strong>Success:</strong> <?php echo htmlspecialchars($exportResult['message']); ?>
-                        </div>
-                    <?php else: ?>
-                        <div class="error-msg">
-                            <strong>Export Failed:</strong>
-                            <ul style="margin-top: 5px; margin-bottom: 0;">
-                                <?php foreach ($exportResult['errors'] as $err): ?>
-                                    <li><?php echo htmlspecialchars($err); ?></li>
-                                <?php endforeach; ?>
-                            </ul>
-                        </div>
-                    <?php endif; ?>
+                <?php else: ?>
+                    <div class="error-msg">
+                        <strong>Export Failed:</strong>
+                        <ul style="margin-top: 5px; margin-bottom: 0;">
+                            <?php foreach ($exportResult['errors'] as $err): ?>
+                                <li><?php echo htmlspecialchars($err); ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
                 <?php endif; ?>
+            <?php endif; ?>
 
-                <form method="POST">
-                    <p style="font-size: 0.9em; color: #555; margin-top: 0;"><em>Export the processed table back into a fixed-width format (4823 chars per line).</em></p>
-                    <button type="submit" name="action" value="export_txt">Export TXT</button>
-                </form>
-            </div>
-        <?php endif; ?>
+            <form method="POST">
+                <!-- <p style="font-size: 0.9em; color: #555; margin-top: 0;"><em>Export the processed table back into a fixed-width format (4823 chars per line).</em></p> -->
+                <button type="submit" name="action" value="export_txt">Esporta TXT</button>
+            </form>
+        </div>
 
     <?php endif; ?>
 
     <hr>
 
     <div class="container">
-        <h3>Merge TXT Files</h3>
+        <h3>Unisci i file TXT</h3>
         
         <?php if ($mergeResult !== null): ?>
             <?php if ($mergeResult['success']): ?>
@@ -616,10 +564,10 @@ if (is_dir($editedTxtDir)) {
         <?php endif; ?>
 
         <?php if (empty($availableTxtFiles)): ?>
-            <p style="font-size: 0.9em; color: #555;">No TXT files found in the <code>EditedTXT</code> directory.</p>
+            <p style="font-size: 0.9em; color: #555;">Nessun file TXT trovato nella cartella <code>EditedTXT</code>.</p>
         <?php else: ?>
             <form method="POST">
-                <p style="font-size: 0.9em; color: #555; margin-top: 0;"><em>Select files to merge (order of selection corresponds to top-to-bottom reading).</em></p>
+                <p style="font-size: 0.9em; color: #555; margin-top: 0;"><em>Seleziona i file da unire.</em></p>
                 <div class="file-list">
                     <?php foreach ($availableTxtFiles as $file): ?>
                         <label>
@@ -628,7 +576,7 @@ if (is_dir($editedTxtDir)) {
                         </label>
                     <?php endforeach; ?>
                 </div>
-                <button type="submit" name="action" value="merge_txt">Merge Selected Files</button>
+                <button type="submit" name="action" value="merge_txt">Unisci i file selezionati</button>
             </form>
         <?php endif; ?>
     </div>
