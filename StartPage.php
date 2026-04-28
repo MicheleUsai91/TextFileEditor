@@ -4,6 +4,20 @@ session_start();
 define('EXPECTED_LINE_LENGTH', 4823);
 define('CSV_SEPARATOR', ';');
 
+// --- Debug Function ---
+
+function console_log($data, ?string $label = null): void {
+    $json_data = json_encode($data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+    echo "<script>\n";
+    if ($label !== null) {
+        $json_label = json_encode($label, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+        echo "console.log({$json_label}, {$json_data});\n";
+    } else {
+        echo "console.log({$json_data});\n";
+    }
+    echo "</script>\n";
+}
+
 // --- Modular Functions ---
 
 function loadSchemaFromCsv(string $filepath): array {
@@ -91,6 +105,67 @@ function loadEnrichmentDataFromCsv(string $filepath): array {
     return $data;
 }
 
+function loadBulkEnrichmentData(string $csvDir): array {
+    $data = [];
+    if (!is_dir($csvDir)) {
+        return $data;
+    }
+
+    $files = glob($csvDir . DIRECTORY_SEPARATOR . '*.csv');
+    if (!$files) {
+        return $data;
+    }
+
+    foreach ($files as $file) {
+        $handle = @fopen($file, 'r');
+        if (!$handle) {
+            continue;
+        }
+
+        $headerLine = fgets($handle);
+        if ($headerLine === false) {
+            fclose($handle);
+            continue;
+        }
+
+        $headerLine = preg_replace('/^\xEF\xBB\xBF/', '', trim($headerLine));
+        $headers = explode(CSV_SEPARATOR, $headerLine);
+        $headers = array_map('trim', $headers);
+
+        $requiredColumns = ['REESITO_PRATICA_CMP', 'REESITO_ESITO_CONTATTO', 'REESITO_NOTA'];
+        $colMap = [];
+
+        foreach ($requiredColumns as $col) {
+            $idx = array_search($col, $headers);
+            if ($idx === false) {
+                fclose($handle);
+                continue 2; 
+            }
+            $colMap[$col] = $idx;
+        }
+
+        while (($line = fgets($handle)) !== false) {
+            $cleanLine = trim($line);
+            if ($cleanLine === '') {
+                continue;
+            }
+
+            $row = explode(CSV_SEPARATOR, $cleanLine);
+            $rawKey = trim((string)($row[$colMap['REESITO_PRATICA_CMP']] ?? ''));
+            
+            if ($rawKey !== '') {
+                $key = (int)$rawKey; 
+                $data[$key] = [
+                    'ESITO' => trim((string)($row[$colMap['REESITO_ESITO_CONTATTO']] ?? '')),
+                    'NOTA' => trim((string)($row[$colMap['REESITO_NOTA']] ?? ''))
+                ];
+            }
+        }
+        fclose($handle);
+    }
+    return $data;
+}
+
 function validateField(string $rawValue, array $schemaDef): array {
     $lungh = (int)($schemaDef['Lungh'] ?? 0);
     $tipo = $schemaDef['Tipo'] ?? '';
@@ -172,6 +247,80 @@ function processTxtFile(string $txtFilepath, array $schema): array {
         'rows' => $parsedRows,
         'headers' => array_column($schema, 'Alias')
     ];
+}
+
+function processBulkTxtFiles(string $txtDir, array $schema, array &$debugLogs = []): array {
+    $debugLogs[] = "Entering processBulkTxtFiles()";
+    $debugLogs[] = "Resolved TXT path: " . $txtDir;
+
+    $isDir = is_dir($txtDir);
+    $isReadable = is_readable($txtDir);
+    
+    $debugLogs[] = "Directory exists: " . ($isDir ? "YES" : "NO");
+    $debugLogs[] = "Directory readable: " . ($isReadable ? "YES" : "NO");
+
+    $parsedRows = [];
+    
+    if (!$isDir || !$isReadable) {
+        $debugLogs[] = "Returning array with 0 elements";
+        return $parsedRows;
+    }
+
+    $rawFiles = scandir($txtDir);
+    if ($rawFiles === false) {
+        $debugLogs[] = "ERROR: scandir() returned false.";
+        $debugLogs[] = "Returning array with 0 elements";
+        return $parsedRows;
+    }
+
+    $debugLogs[] = "Raw scandir output:\n" . implode("\n", $rawFiles);
+
+    $validFiles = [];
+    foreach ($rawFiles as $file) {
+        if ($file === '.' || $file === '..') {
+            continue;
+        }
+        $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+        if ($ext === 'txt') {
+            $debugLogs[] = "Checking file: $file -> VALID TXT";
+            $validFiles[] = $txtDir . DIRECTORY_SEPARATOR . $file;
+        } else {
+            $debugLogs[] = "Checking file: $file -> SKIPPED";
+        }
+    }
+
+    foreach ($validFiles as $filepath) {
+        $filename = basename($filepath);
+        $debugLogs[] = "Reading file: $filename";
+
+        $handle = @fopen($filepath, 'r');
+        if (!$handle) {
+            $debugLogs[] = "ERROR: Unable to open file: $filename";
+            continue;
+        }
+
+        $linesRead = 0;
+        while (($line = fgets($handle)) !== false) {
+            if (trim($line) === '' && feof($handle)) {
+                continue;
+            }
+
+            $result = parseLine($line, $schema);
+
+            if (!empty($result['data'])) {
+                $parsedRows[] = ['columns' => $result['data']];
+                $linesRead++;
+            }
+        }
+        fclose($handle);
+        $debugLogs[] = "Lines read: $linesRead";
+    }
+
+    $totalLines = count($parsedRows);
+    $debugLogs[] = "Total merged lines: $totalLines";
+    $debugLogs[] = "Returning array with $totalLines elements";
+
+    return $parsedRows;
 }
 
 function enrichRows(array &$rows, array $enrichmentData, array $schema): array {
@@ -267,11 +416,74 @@ function handleExport(array $rows, array $schema): array {
     }
 
     foreach ($linesToWrite as $line) {
-        fwrite($handle, $line . "\n");
+        $count++;
+        if ($count === count($linesToWrite)) {
+            fwrite($handle, $line);
+        } else {
+            fwrite($handle, $line . "\n");
+        }
     }
     fclose($handle);
 
     return ['success' => true, 'message' => "File successfully created: EditedTXT/" . $filename];
+}
+
+function handleDefinitiviExport(array $rows, array $schema): array {
+    if (empty($rows)) {
+        return ['success' => false, 'errors' => ['No data to export.']];
+    }
+
+    $errors = [];
+    $linesToWrite = [];
+    $expectedLength = EXPECTED_LINE_LENGTH;
+
+    foreach ($rows as $index => $row) {
+        $lineStr = '';
+        foreach ($schema as $field) {
+            if (isset($field['Alias'])) {
+                $val = $row['columns'][$field['Alias']]['value'] ?? '';
+                $lineStr .= $val;
+            }
+        }
+
+        $len = strlen($lineStr);
+        if ($len !== $expectedLength) {
+            $errors[] = "Line " . ($index + 1) . ": Invalid length. Expected {$expectedLength}, got {$len}.";
+        } else {
+            $linesToWrite[] = $lineStr;
+        }
+    }
+
+    if (!empty($errors)) {
+        return ['success' => false, 'errors' => $errors];
+    }
+
+    $dir = __DIR__ . DIRECTORY_SEPARATOR . 'DEFINITIVI';
+    if (!is_dir($dir)) {
+        if (!@mkdir($dir, 0777, true)) {
+            return ['success' => false, 'errors' => ["Failed to create output directory: DEFINITIVI"]];
+        }
+    }
+
+    $filename = 'DEFINITIVI_' . date('Ymd_His') . '.txt';
+    $filepath = $dir . DIRECTORY_SEPARATOR . $filename;
+
+    $handle = @fopen($filepath, 'w');
+    if (!$handle) {
+        return ['success' => false, 'errors' => ["Failed to open file for writing: $filename"]];
+    }
+
+    foreach ($linesToWrite as $line) {
+        $count++;
+        if ($count === count($linesToWrite)) {
+            fwrite($handle, $line);
+        } else {
+            fwrite($handle, $line . "\n");
+        }
+    }
+    fclose($handle);
+
+    return ['success' => true, 'message' => "File successfully created: DEFINITIVI/" . $filename];
 }
 
 function handleMerge(array $filesToMerge): array {
@@ -335,6 +547,32 @@ function deleteRowsByIds(array &$rows, array $idsToDelete): void {
     $rows = array_values($rows);
 }
 
+function scanTxtFolderDebug(): array {
+    $dir = __DIR__ . DIRECTORY_SEPARATOR . 'TXT';
+    $debugInfo = [
+        'path' => $dir,
+        'exists' => is_dir($dir),
+        'readable' => is_readable($dir),
+        'all_files' => [],
+        'valid_txt' => []
+    ];
+
+    if ($debugInfo['exists'] && $debugInfo['readable']) {
+        $all = scandir($dir);
+        foreach ($all as $file) {
+            if ($file !== '.' && $file !== '..') {
+                $debugInfo['all_files'][] = $file;
+                if (strtolower(pathinfo($file, PATHINFO_EXTENSION)) === 'txt') {
+                    $debugInfo['valid_txt'][] = $file;
+                }
+            }
+        }
+    }
+    
+    return $debugInfo;
+}
+
+
 // --- Main Controller ---
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -397,6 +635,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header("Location: " . $_SERVER['PHP_SELF']);
             exit;
         }
+
+        if ($_POST['action'] === 'run_batch') {
+            $txtFolderDebug = scanTxtFolderDebug();
+            $_SESSION['txt_folder_debug'] = $txtFolderDebug;
+            console_log($txtFolderDebug, 'TXT FOLDER DEBUG');
+
+            $csvPath = __DIR__ . DIRECTORY_SEPARATOR . 'Rules.csv';
+            if (!file_exists($csvPath)) {
+                $_SESSION['batch_result'] = ['success' => false, 'errors' => ['Schema file Rules.csv not found in root directory.']];
+                header("Location: " . $_SERVER['PHP_SELF']);
+                exit;
+            }
+            
+            $schema = loadSchemaFromCsv($csvPath);
+            $txtDir = __DIR__ . DIRECTORY_SEPARATOR . 'TXT';
+            
+            if (!is_dir($txtDir)) {
+                $_SESSION['batch_result'] = ['success' => false, 'errors' => ['TXT directory not found.']];
+                header("Location: " . $_SERVER['PHP_SELF']);
+                exit;
+            }
+
+            $bulkDebugLogs = [];
+            $allRows = processBulkTxtFiles($txtDir, $schema, $bulkDebugLogs);
+            $_SESSION['bulk_debug_logs'] = $bulkDebugLogs;
+
+            if (empty($allRows)) {
+                $_SESSION['batch_result'] = ['success' => false, 'errors' => ['No valid TXT files or data found in TXT directory.']];
+                header("Location: " . $_SERVER['PHP_SELF']);
+                exit;
+            }
+
+            $csvDir = __DIR__ . DIRECTORY_SEPARATOR . 'CSV';
+            $enrichmentData = loadBulkEnrichmentData($csvDir);
+            
+            $debugLogs = enrichRows($allRows, $enrichmentData, $schema);
+            $exportResult = handleDefinitiviExport($allRows, $schema);
+
+            $_SESSION['schema'] = $schema;
+            $_SESSION['headers'] = array_column($schema, 'Alias');
+            $_SESSION['rows'] = $allRows;
+            $_SESSION['debug_logs'] = $debugLogs;
+
+            if ($exportResult['success']) {
+                $_SESSION['batch_result'] = ['success' => true, 'message' => $exportResult['message']];
+            } else {
+                $_SESSION['batch_result'] = ['success' => false, 'errors' => $exportResult['errors']];
+            }
+
+            header("Location: " . $_SERVER['PHP_SELF']);
+            exit;
+        }
     }
 
     // Step 1: Handle TXT Upload
@@ -410,6 +700,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['headers'] = $processResult['headers'];
             $_SESSION['rows'] = $processResult['rows'];
             unset($_SESSION['debug_logs']);
+            unset($_SESSION['txt_folder_debug']);
+            unset($_SESSION['bulk_debug_logs']);
         }
     }
 
@@ -429,11 +721,18 @@ $hasData = isset($_SESSION['rows']);
 $headers = $_SESSION['headers'] ?? [];
 $rows = $_SESSION['rows'] ?? [];
 $debugLogs = $_SESSION['debug_logs'] ?? [];
+
 $exportResult = $_SESSION['export_result'] ?? null;
 unset($_SESSION['export_result']);
 
 $mergeResult = $_SESSION['merge_result'] ?? null;
 unset($_SESSION['merge_result']);
+
+$batchResult = $_SESSION['batch_result'] ?? null;
+unset($_SESSION['batch_result']);
+
+$txtFolderDebug = $_SESSION['txt_folder_debug'] ?? null;
+$bulkDebugLogs = $_SESSION['bulk_debug_logs'] ?? null;
 
 $editedTxtDir = __DIR__ . DIRECTORY_SEPARATOR . 'EditedTXT';
 $availableTxtFiles = [];
@@ -444,6 +743,13 @@ if (is_dir($editedTxtDir)) {
             $availableTxtFiles[] = basename($file);
         }
     }
+}
+
+if ($txtFolderDebug) {
+    console_log($txtFolderDebug, 'TXT FOLDER DEBUG (Render)');
+}
+if ($bulkDebugLogs) {
+    console_log($bulkDebugLogs, 'PROCESS BULK TXT DEBUG (Render)');
 }
 
 ?>
@@ -471,6 +777,59 @@ if (is_dir($editedTxtDir)) {
 <body>
 
     <h2>PHP Dynamic Fixed-Width TXT File Visualizer</h2>
+
+    <div class="container">
+        <h3>Batch Processing</h3>
+        
+        <?php if ($batchResult !== null): ?>
+            <?php if ($batchResult['success']): ?>
+                <div class="success-msg">
+                    <strong>Success:</strong> <?php echo htmlspecialchars($batchResult['message']); ?>
+                </div>
+            <?php else: ?>
+                <div class="error-msg">
+                    <strong>Batch Processing Failed:</strong>
+                    <ul style="margin-top: 5px; margin-bottom: 0;">
+                        <?php foreach ($batchResult['errors'] as $err): ?>
+                            <li><?php echo htmlspecialchars($err); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            <?php endif; ?>
+        <?php endif; ?>
+
+        <?php if ($txtFolderDebug !== null): ?>
+            <div class="debug-container">
+                <h4>TXT FOLDER DEBUG:</h4>
+                <p>Folder exists: <?php echo $txtFolderDebug['exists'] ? 'YES' : 'NO'; ?></p>
+                <p>Readable: <?php echo $txtFolderDebug['readable'] ? 'YES' : 'NO'; ?></p>
+                
+                <h5>All files found:</h5>
+                <pre><?php echo htmlspecialchars(implode("\n", $txtFolderDebug['all_files'] ?: ['(None)'])); ?></pre>
+                
+                <h5>Valid TXT files:</h5>
+                <pre><?php echo htmlspecialchars(implode("\n", $txtFolderDebug['valid_txt'] ?: ['(None)'])); ?></pre>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($bulkDebugLogs !== null): ?>
+            <div class="debug-container">
+                <h4>PROCESS BULK TXT DEBUG:</h4>
+                <div style="max-height: 300px; overflow-y: auto;">
+                    <?php foreach ($bulkDebugLogs as $log): ?>
+                        <pre class="debug-log"><?php echo htmlspecialchars($log); ?></pre>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <form method="POST">
+            <p style="font-size: 0.9em; color: #555; margin-top: 0;"><em>Automatically merge all files from <code>TXT/</code>, enrich using all files from <code>CSV/</code>, and export the result to <code>DEFINITIVI/</code>.</em></p>
+            <button type="submit" name="action" value="run_batch">Run Massive Elaboration</button>
+        </form>
+    </div>
+
+    <hr>
 
     <div class="container">
         <form method="POST" enctype="multipart/form-data">
