@@ -1,0 +1,79 @@
+body {
+    font-family: sans-serif;
+    line-height: 1.4;
+    color: #333;
+    margin: 20px;
+}
+
+.pre-wrap {
+    white-space: pre;
+    font-family: monospace;
+}
+
+.container {
+    margin-bottom: 20px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    background-color: #f9f9f9;
+}
+
+.debug-container {
+    margin-bottom: 20px;
+    padding: 15px;
+    border: 1px solid #0056b3;
+    background-color: #e6f2ff;
+}
+
+.debug-log {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed #0056b3;
+}
+
+.debug-log:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.success-msg {
+    color: #155724;
+    margin-bottom: 15px;
+    padding: 10px;
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+}
+
+.error-msg {
+    color: #721c24;
+    margin-bottom: 15px;
+    padding: 10px;
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+}
+
+.btn-action {
+    margin-left: 10px;
+    padding: 5px 10px;
+}
+
+.file-list {
+    max-height: 150px;
+    overflow-y: auto;
+    border: 1px solid #ccc;
+    padding: 10px;
+    margin-bottom: 10px;
+    background: #fff;
+}
+
+.file-list label {
+    display: block;
+    margin-bottom: 5px;
+    cursor: pointer;
+}
+
+.deletion-box {
+    border-top: 1px solid #ccc;
+    margin-top: 15px;
+    padding-top: 15px;
+}
