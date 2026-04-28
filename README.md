@@ -1,90 +1,92 @@
-# PHP Fixed-Width TXT Visualizer
-A standalone, single-file PHP web application designed to parse, visualize, enrich, and export fixed-width text files based on a predefined schema. This tool provides a clear interface for working with strict, schema-bound text documents without requiring a database or heavy frontend frameworks.
-### Key Capabilities
- * Parse and visually validate strict fixed-width text files in the browser.
- * Enrich specific dataset fields in bulk using a delimited CSV file.
- * Export modified data back to a strictly validated fixed-width format.
- * Export data to a pipe-separated CSV for external analysis.
- * Merge multiple processed text files into a single consolidated file.
-## Features
- * **Upload and Parse Fixed-Width TXT Files**: Reads files line-by-line, extracting fields strictly by schema position.
- * **Schema-Based Extraction**: Maps raw string indices to meaningful aliases based on a predefined structural schema.
- * **Automatic Padding**:
-   * **Alphanumeric (A)**: Right-padded with spaces to match expected length.
-   * **Numeric (S)**: Left-padded with zeros to match expected length.
- * **Conditional Validation Highlighting**: Visually flags fields in red if their extracted or enriched length does not match the schema's required length.
- * **CSV-Based Data Enrichment**: Updates target fields (EER_ESITO, EER_NOTE_RIENTRO) by matching records against an uploaded CSV file.
- * **TXT Export**: Reconstructs the table data back into a valid fixed-width text format.
- * **CSV Export**: Dynamically generates and downloads the current table state as a pipe-separated (|) CSV file.
- * **File Merging**: Select and concatenate multiple TXT files located in the output directory.
-## Input File Specifications
-### TXT File
- * Format: Fixed-width string.
- * Line Length: Every line must be exactly **4823 characters** long.
- * Delimiters: None.
- * Field Mapping: Defined by a positional schema indicating start index and length.
-### CSV File (Enrichment)
- * Separator: Pipe (|)
- * Header Row: Required.
- * Required Headers:
-   * REESITO_PRATICA_CMP (Used as the matching key)
-   * REESITO_ESITO_CONTATTO
-   * REESITO_NOTA
-**Example:**
+# PHP Dynamic TXT Editor
+
+**PHP Dynamic TXT Editor** è un’applicazione web concepita per la gestione, l'analisi e l'arricchimento di flussi dati in formato testuale a lunghezza fissa. Il sistema permette di trasformare file TXT grezzi in tabelle interattive, validare la struttura dei record, integrare informazioni da fonti esterne (CSV) e generare nuovi file pronti per la produzione.
+
+### Funzionalità Principali
+- **Parsing Intelligente**: Estrazione automatica dei campi basata su uno schema posizionale predefinito.
+- **Validazione in Tempo Reale**: Controllo immediato della lunghezza delle righe e dei singoli campi con segnalazione visiva degli errori.
+- **Arricchimento Dati**: Integrazione di informazioni aggiuntive tramite caricamento di file CSV.
+- **Gestione Esportazioni**: Generazione di file TXT conformi agli standard di lunghezza fissa e file CSV per analisi esterne.
+- **Elaborazione Massiva**: Funzioni di merge e batch processing per gestire grandi volumi di file simultaneamente.
+
+---
+
+## 1. Funzionalità nel Dettaglio
+
+### Estrazione e Padding
+Il sistema applica automaticamente le regole di formattazione durante il parsing e l'arricchimento:
+- **Campi Alfanumerici (A)**: Se la stringa è più corta del previsto, viene applicato un padding di spazi a destra.
+- **Campi Numerici (S)**: Se il valore è più corto del previsto, viene applicato un padding di zeri a sinistra.
+
+### Validazione e Visualizzazione
+- Ogni riga viene analizzata singolarmente. Se una riga o un campo non corrispondono alla lunghezza definita dallo schema, il valore viene evidenziato in **rosso** all'interno della tabella HTML.
+- **Nessun Troncamento**: Il sistema non taglia mai i dati in eccesso, permettendo all'utente di individuare anomalie nel file sorgente.
+
+---
+
+## 2. Specifiche dei File di Input
+
+### File TXT (Dati)
+- **Formato**: Lunghezza fissa (Fixed-width).
+- **Vincolo Rigido**: Ogni riga deve contenere esattamente **4823 caratteri**.
+- **Struttura**: Non sono presenti delimitatori; i campi sono determinati esclusivamente dalla loro posizione (indice di inizio e lunghezza).
+
+### File CSV (Arricchimento)
+- **Separatore**: Punto e virgola (`;`).
+- **Codifica**: UTF-8.
+- **Intestazioni Obbligatorie**: Il file deve contenere esattamente queste colonne:
+  - `REESITO_PRATICA_CMP`: ID unico per il match con il file TXT.
+  - `REESITO_ESITO_CONTATTO`: Valore da inserire nel campo `EER_ESITO`.
+  - `REESITO_NOTA`: Valore da inserire nel campo `EER_NOTE_RIENTRO`.
+
+#### Esempio di file CSV:
 ```csv
-REESITO_PRATICA_CMP|REESITO_ESITO_CONTATTO|REESITO_NOTA
-12345|OK|Sample note
-67890|KO|Client unreachable
-
+REESITO_PRATICA_CMP;REESITO_ESITO_CONTATTO;REESITO_NOTA
+12345;OK;Pratica lavorata con successo
+67890;KO;Cliente non raggiungibile
 ```
-## Application Workflow
- 1. **Upload TXT File**: Select and upload the raw fixed-width .txt file. The application will parse the file according to the schema and render it as an HTML table.
- 2. **(Optional) Upload CSV**: Upload a | separated CSV file to enrich the currently displayed data. Matches are made using the CMP practice number.
- 3. **Export Data**:
-   * **TXT**: Validates the reconstructed lines and saves a compliant fixed-width file to the server.
-   * **CSV**: Generates an immediate browser download of the table data.
- 4. **Merge Files**: Scroll to the "Merge TXT Files" section to select and combine previously exported files from the EditedTXT folder.
-## Output Behavior
-### TXT Export
- * **Structure**: Reconstructed sequentially using the exact order defined in the schema.
- * **Constraints**: Each line is strictly enforced to be exactly **4823 characters**.
- * **Storage**: Saved server-side in the EditedTXT/ directory with a timestamped filename (e.g., output_YYYYMMDD_HHMMSS.txt).
-### CSV Export
- * **Structure**: Generated dynamically for immediate download.
- * **Format**: Uses | as the column separator. Headers correspond to schema aliases.
-### Merge Output
- * **Process**: Combines selected TXT files exactly as they are written, top to bottom.
- * **Storage**: Saved in the EditedTXT/ directory as merged_YYYYMMDD_HHMMSS.txt.
-## Validation Rules
- * **Line Length**: Source and output TXT files must have lines of exactly **4823** characters.
- * **Field Length**: Extracted values must perfectly match the Lungh (length) property defined in the schema.
- * **No Truncation**: The application will not silently truncate oversized data; it will flag it for review.
- * **Visual Cues**: Invalid fields are rendered with red text in the HTML table.
- * **Export Blocking**: TXT export is strictly blocked if any reconstructed line fails the 4823-character length check.
-## Project Structure
-```text
-/project-root
-│── index.php       # Main application file (handles logic, UI, and processing)
-│── Rules.csv       # Schema definition file
-└── /EditedTXT      # Auto-generated directory for exported and merged TXT files
 
-```
-## Requirements
- * **PHP**: PHP 7.4 or higher (no frameworks required).
- * **Web Server**: Apache, Nginx, or the built-in PHP development server.
- * **File Permissions**: The web server user (e.g., www-data) must have write permissions to create and write to the EditedTXT directory.
-## Limitations
- * **Single-File Architecture**: The entire application (HTML, PHP logic, processing) resides in a single file, prioritizing portability over modularity.
- * **No Client-Side Interactivity**: Relies entirely on server-side PHP processing; no JavaScript is used for table manipulation or async uploads.
- * **Schema Dependency**: Assumes a well-formed, predefined schema.
- * **Memory Constraints**: Processes files entirely in memory. Exceptionally large text files may exceed PHP memory_limit settings as no streaming optimization is implemented.
-## Troubleshooting
- * **File not uploading**: Check your php.ini configuration for upload_max_filesize and post_max_size.
- * **Export fails**: Verify that every line reconstructs to exactly 4823 characters. Check the UI for any fields highlighted in red indicating a length mismatch.
- * **Merge not working**: Ensure the EditedTXT folder exists, has the correct write permissions, and contains valid .txt files.
- * **CSV not applied**: Verify that your CSV uses the | delimiter and that the required column headers exactly match REESITO_PRATICA_CMP, REESITO_ESITO_CONTATTO, and REESITO_NOTA without hidden BOM characters or trailing spaces.
-## Future Improvements
- * **Streaming Processing**: Implement generator functions or stream handling to parse and write files line-by-line, drastically reducing memory footprint for massive files.
- * **UI Enhancements**: Add client-side JavaScript for sorting, filtering, and paginating the HTML table.
- * **Dynamic Schema Upload**: Allow the user to upload Rules.csv dynamically rather than reading it exclusively from the server directory.
- * **API Extraction**: Separate the parsing and validation logic into a RESTful API endpoint for headless operations.
+---
+
+## 3. Flusso Operativo
+
+### Fase 1: Caricamento e Visualizzazione
+Caricare il file TXT tramite il modulo di upload. Il sistema elabora il file e genera una tabella HTML. Se vengono rilevate incongruenze nelle lunghezze, le celle interessate appariranno evidenziate.
+
+### Fase 2: Arricchimento e Modifica
+- **Integrazione CSV**: Caricare il file CSV per aggiornare automaticamente i campi di esito e nota sulle pratiche corrispondenti.
+- **Eliminazione Massiva**: È possibile rimuovere righe dalla tabella selezionando le checkbox singole o inserendo una lista di ID separati da punto e virgola (es. `101;102;105`).
+
+### Fase 3: Esportazione
+- **Export CSV**: Scarica l'attuale visualizzazione della tabella in un file CSV (delimitato da `;`).
+- **Export TXT**: Genera un nuovo file testuale in cui ogni riga è ricostruita secondo lo schema originale (4823 caratteri). **Nota**: l'export è bloccato se sono presenti righe con lunghezza totale errata.
+
+### Fase 4: Operazioni Batch
+- **Merge**: Selezione manuale di più file dalla cartella `EditedTXT/` per unirli in un unico file finale.
+- **Elaborazione Massiva**: Esecuzione automatica che preleva tutti i file presenti in `TXT/`, li arricchisce con i dati presenti in `CSV/` e salva i risultati finali nella cartella `DEFINITIVI/`.
+
+---
+
+## 4. Output del Sistema
+
+I file generati vengono organizzati come segue:
+- **`EditedTXT/`**: Contiene i file TXT generati dall'esportazione singola o dal merge manuale.
+- **`DEFINITIVI/`**: Destinazione dei file generati tramite elaborazione batch massiva.
+- **Download Diretto**: I file CSV vengono inviati direttamente al browser senza salvataggio sul server.
+
+---
+
+## 5. Regole di Validazione e Sicurezza
+
+- **Integrità del Record**: Se la ricostruzione di una riga non produce esattamente 4823 caratteri, il sistema interrompe l'esportazione per prevenire la corruzione dei dati.
+- **Schema Posizionale**: La mappatura dei campi dipende dal file `Rules.csv` presente nella root o dallo schema hardcoded. Ogni scostamento tra il valore `Lungh` e i dati reali viene segnalato.
+- **Gestione Sessione**: I dati caricati e le modifiche (arricchimento/eliminazioni) sono persistenti durante la sessione di lavoro dell'utente.
+
+---
+
+## 6. Requisiti di Sistema
+
+- **PHP**: Versione 7.4 o superiore.
+- **Estensioni**: `mbstring` (per la gestione corretta delle lunghezze stringa).
+- **Permessi di Scrittura**: Necessari per le cartelle `EditedTXT/` e `DEFINITIVI/`.
+- **Memoria**: Per file TXT estremamente grandi, regolare il parametro `memory_limit` in `php.ini`.
