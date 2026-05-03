@@ -88,6 +88,29 @@
                         <i class="fa-solid fa-play"></i> Lancia Elaborazione Massiva
                     </button>
                 </form>
+                <hr class="divider" style="margin: 5px 0;">
+                <div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span class="text-muted" style="font-size: 0.85rem; font-weight: 600;"><i class="fa-solid fa-folder-check" style="color: var(--primary);"></i> File Definitivi</span>
+                        <form method="POST" style="margin: 0;">
+                            <input type="hidden" name="folder_target" value="DEFINITIVI">
+                            <button type="submit" name="action" value="open_folder" class="btn btn-primary btn-sm" title="Apri cartella DEFINITIVI">
+                                <i class="fa-solid fa-folder-open"></i>
+                            </button>
+                        </form>
+                    </div>
+                    <div class="file-list" style="max-height: 120px; background-color: #f8fafc;">
+                        <?php if (empty($definitiviFiles)): ?>
+                            <span class="text-muted" style="font-size: 0.8rem;">Nessun file definitivo presente.</span>
+                        <?php else: ?>
+                            <?php foreach ($definitiviFiles as $f): ?>
+                                <div style="font-size: 0.8rem; margin-bottom: 5px; padding: 5px; border-radius: 4px; border: 1px solid var(--border-color); background: #fff; display: flex; align-items: center; gap: 8px;">
+                                    <i class="fa-solid fa-file-lines text-muted"></i> <?php echo htmlspecialchars($f); ?>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
             </div>
         </div>
         <div class="card">
@@ -105,27 +128,27 @@
                         <i class="fa-solid fa-upload"></i> Carica TXT
                     </button>
                 </form>
-                <?php if (!empty($rows)): ?>
-                    <hr class="divider">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <span class="text-muted" style="font-size: 0.85rem; font-weight: 600;"><i class="fa-solid fa-folder"></i> EXCEL</span>
-                        <div style="display: flex; gap: 5px;">
-                            <form method="POST" style="margin: 0;">
-                                <input type="hidden" name="folder_target" value="EXCEL">
-                                <button type="submit" name="action" value="open_folder" class="btn btn-secondary btn-sm" title="Apri cartella EXCEL">
-                                    <i class="fa-solid fa-folder-open"></i> Excel
-                                </button>
-                            </form>
-                        </div>
+                <hr class="divider">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <span class="text-muted" style="font-size: 0.85rem; font-weight: 600;"><i class="fa-solid fa-folder"></i> EXCEL</span>
+                    <div style="display: flex; gap: 5px;">
+                        <form method="POST" style="margin: 0;">
+                            <input type="hidden" name="folder_target" value="EXCEL">
+                            <button type="submit" name="action" value="open_folder" class="btn btn-secondary btn-sm" title="Apri cartella EXCEL">
+                                <i class="fa-solid fa-folder-open"></i> Excel
+                            </button>
+                        </form>
                     </div>
-                    <form method="POST" class="form-stack" style="margin-bottom: 20px;">
-                        <div class="input-group">
-                            <label>Converti Excel in CSV:</label>
-                        </div>
-                        <button type="submit" name="action" value="run_ps_script" class="btn btn-success w-100" title="Avvia la conversione PowerShell">
-                            <i class="fa-brands fa-windows"></i> Lancia Script PowerShell
-                        </button>
-                    </form>
+                </div>
+                <form method="POST" class="form-stack" style="margin-bottom: 20px;">
+                    <div class="input-group">
+                        <label>Converti Excel in CSV:</label>
+                    </div>
+                    <button type="submit" name="action" value="run_ps_script" class="btn btn-success w-100" title="Avvia la conversione PowerShell">
+                        <i class="fa-brands fa-windows"></i> Lancia Script PowerShell
+                    </button>
+                </form>
+                <?php if (!empty($rows)): ?>
                     <hr class="divider">
                     <form method="POST" enctype="multipart/form-data" class="form-stack">
                         <div class="input-group">

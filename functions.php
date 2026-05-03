@@ -83,7 +83,7 @@ function loadEnrichmentDataFromCsv(string $filepath): array {
 function loadBulkEnrichmentData(string $csvDir): array {
     $data = [];
     if (!is_dir($csvDir)) return $data;
-    $files = glob($csvDir . DIRECTORY_SEPARATOR . '*.csv');
+    $files = glob($csvDir . DIRECTORY_SEPARATOR . '*.[cC][sS][vV]');
     if (!$files) return $data;
     foreach ($files as $file) {
         if (!is_readable($file)) continue;
@@ -147,7 +147,7 @@ function processTxtFile(string $txtFilepath, array $schema): array {
 function processBulkTxtFiles(string $txtDir, array $schema): array {
     $parsedRows = [];
     if (!$schema || !is_dir($txtDir)) return $parsedRows;
-    $files = glob($txtDir . DIRECTORY_SEPARATOR . '*.txt');
+    $files = glob($txtDir . DIRECTORY_SEPARATOR . '*.[tT][xX][tT]');
     if (!$files) return $parsedRows;
     foreach ($files as $file) {
         if (!is_readable($file)) continue;

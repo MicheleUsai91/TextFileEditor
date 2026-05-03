@@ -22,7 +22,7 @@ if (-not (Test-Path -Path $excelFolder)) {
 }
 
 # 4. Grab all .xlsx files in the target directory
-$excelFiles = Get-ChildItem -Path $excelFolder -Filter *.xlsx
+$excelFiles = Get-ChildItem -Path "$excelFolder\*" -Include *.xlsx, *.xls -File
 
 if ($excelFiles.Count -eq 0) {
     Write-Host "No Excel files found in $excelFolder." -ForegroundColor Yellow

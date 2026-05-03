@@ -12,7 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if ($action === 'open_folder' && !empty($_POST['folder_target'])) {
         $target = $_POST['folder_target'];
-        $allowed = ['ORIGINALI' => CARTELLA_ORIGINALI, 'ESITI' => CARTELLA_ESITI, 'MODIFICATI' => CARTELLA_MODIFICATI, 'UNITI' => CARTELLA_UNITI, 'CSV' => CARTELLA_CSV, 'EXCEL' => CARTELLA_EXCEL];
+        $allowed = ['ORIGINALI' => CARTELLA_ORIGINALI, 'ESITI' => CARTELLA_ESITI, 'MODIFICATI' => CARTELLA_MODIFICATI, 'UNITI' => CARTELLA_UNITI, 'CSV' => CARTELLA_CSV, 'EXCEL' => CARTELLA_EXCEL, 'DEFINITIVI' => CARTELLA_DEFINITIVI];
         if (isset($allowed[$target])) {
             $path = realpath(__DIR__ . DIRECTORY_SEPARATOR . $allowed[$target]);
             if ($path && is_dir($path)) {
@@ -129,8 +129,10 @@ $modificatiDir = __DIR__ . DIRECTORY_SEPARATOR . CARTELLA_MODIFICATI;
 $originaliDir  = __DIR__ . DIRECTORY_SEPARATOR . CARTELLA_ORIGINALI;
 $esitiDir      = __DIR__ . DIRECTORY_SEPARATOR . CARTELLA_ESITI;
 $unitiDir      = __DIR__ . DIRECTORY_SEPARATOR . CARTELLA_UNITI;
+$definitiviDir      = __DIR__ . DIRECTORY_SEPARATOR . CARTELLA_DEFINITIVI;
 
 $availableTxtFiles = is_dir($modificatiDir) ? array_map('basename', glob($modificatiDir . DIRECTORY_SEPARATOR . '*.[tT][xX][tT]') ?: []) : [];
 $batchTxtFiles = is_dir($originaliDir) ? array_map('basename', glob($originaliDir . DIRECTORY_SEPARATOR . '*.[tT][xX][tT]') ?: []) : [];
 $batchCsvFiles = is_dir($esitiDir) ? array_map('basename', glob($esitiDir . DIRECTORY_SEPARATOR . '*.[cC][sS][vV]') ?: []) : [];
 $mergedTxtFiles    = is_dir($unitiDir) ? array_map('basename', glob($unitiDir . DIRECTORY_SEPARATOR . '*.[tT][xX][tT]') ?: []) : [];
+$definitiviFiles = is_dir($definitiviDir) ? array_map('basename', glob($definitiviDir . DIRECTORY_SEPARATOR . '*.[tT][xX][tT]') ?: []) : [];
