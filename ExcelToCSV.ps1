@@ -13,8 +13,8 @@ if (-not (Get-Module -ListAvailable -Name $moduleName)) {
 }
 
 # 3. Define the folder containing your Excel files, and where to save the CSVs
-$excelFolder  = ".\EXCEL"   # Update this to your Excel folder path
-$csvFolder = ".\CSV"
+$excelFolder = ".\EXCEL"   # Update this to your Excel folder path
+$csvFolder = ".\ESITI"
 
 # Create the output folder if it doesn't already exist
 if (-not (Test-Path -Path $excelFolder)) {

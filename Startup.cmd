@@ -1,3 +1,3 @@
-start msedge http://localhost:4000/Startpage.php
-cd .\PHP\bin
+start msedge http://localhost:4000/APP/Startpage.php
+cd .\Php
 php.exe -S localhost:4000
