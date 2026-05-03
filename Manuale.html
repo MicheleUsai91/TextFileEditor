@@ -1,0 +1,37 @@
+<div style="line-height: 1.6; color: #334155;">
+    <p>Benvenuto nel <strong>Dynamic TXT File Editor</strong>. Questo strumento è stato progettato per elaborare, correggere e unire file TXT e CSV in modo massivo o singolo.</p>
+    
+    <h4 style="color: #2563eb; margin-top: 20px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;"><i class="fa-solid fa-gears"></i> 1. Elaborazione Massiva</h4>
+    <p>Il cuore del sistema. Questa funzione automatizza l'intero processo:</p>
+    <ul style="margin-top: 5px; padding-left: 20px;">
+        <li>Legge tutti i file TXT presenti nella cartella <code>ORIGINALI</code>.</li>
+        <li>Arricchisce automaticamente i dati trovando le corrispondenze nei file all'interno della cartella <code>ESITI</code>.</li>
+        <li>Esporta il risultato finale, pronto e formattato, nella cartella <code>DEFINITIVI</code>.</li>
+    </ul>
+
+    <h4 style="color: #2563eb; margin-top: 20px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;"><i class="fa-solid fa-file-import"></i> 2. Elaborazione Singola</h4>
+    <p>Se devi lavorare su file specifici fuori dal flusso massivo:</p>
+    <ul style="margin-top: 5px; padding-left: 20px;">
+        <li><strong>Converti Excel in CSV:</strong> Lancia uno script PowerShell locale per trasformare i file Excel in formato CSV leggibile dal sistema.</li>
+        <li><strong>Carica TXT:</strong> Carica un singolo file TXT per visualizzarlo nella tabella.</li>
+        <li><strong>Completa la Tabella:</strong> Una volta caricato un TXT, puoi caricare un CSV per iniettare gli esiti nelle relative colonne.</li>
+    </ul>
+
+    <h4 style="color: #2563eb; margin-top: 20px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;"><i class="fa-solid fa-table"></i> 3. Gestione Tabella e Dati</h4>
+    <p>Una volta che i dati sono caricati nella tabella in basso, hai diverse opzioni di modifica:</p>
+    <ul style="margin-top: 5px; padding-left: 20px;">
+        <li><strong>Modifica Diretta (Inline):</strong> Clicca direttamente sulle celle delle colonne <code>EER_ESITO</code> e <code>EER_NOTE_RIENTRO</code> per digitare nuovi valori. Il sistema applicherà la spaziatura (padding) corretta in automatico al salvataggio.</li>
+        <li><strong>Eliminazione Massiva:</strong> Usa il box "Elimina da lista ID" per incollare una lista di ID e cancellare in un colpo solo tutte le righe corrispondenti.</li>
+        <li><strong>Ricerca e Filtri:</strong> Usa la barra di ricerca per trovare rapidamente stringhe nei campi principali (Pratica, Codice Fiscale, Esito).</li>
+    </ul>
+
+    <h4 style="color: #2563eb; margin-top: 20px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;"><i class="fa-solid fa-wrench"></i> 4. Strumenti ed Esportazione</h4>
+    <p>Dal pannello strumenti puoi generare i file finali:</p>
+    <ul style="margin-top: 5px; padding-left: 20px;">
+        <li><strong>Esporta in CSV:</strong> Salva l'intera tabella visualizzata in un file all'interno della cartella <code>CSV</code>.</li>
+        <li><strong>Export TXT:</strong> Genera i file TXT strutturati e li salva nella cartella <code>MODIFICATI</code> (pronti per essere uniti).</li>
+    </ul>
+
+    <h4 style="color: #2563eb; margin-top: 20px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;"><i class="fa-solid fa-object-group"></i> 5. Unione dei File (Merge)</h4>
+    <p>L'ultimo passaggio per assemblare i lotti. Il sistema legge tutti i file presenti in <code>MODIFICATI</code>. Spunta i file che desideri combinare e clicca "Unisci file selezionati". Il file combinato verrà creato nella cartella <code>UNITI</code>.</p>
+</div>

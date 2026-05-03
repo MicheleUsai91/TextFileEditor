@@ -1,92 +1,46 @@
-# PHP Dynamic TXT Editor
+# Dynamic TXT File Editor
 
-**PHP Dynamic TXT Editor** è un’applicazione web concepita per la gestione, l'analisi e l'arricchimento di flussi dati in formato testuale a lunghezza fissa. Il sistema permette di trasformare file TXT grezzi in tabelle interattive, validare la struttura dei record, integrare informazioni da fonti esterne (CSV) e generare nuovi file pronti per la produzione.
+A lightweight, high-performance web dashboard built in PHP, Vanilla JavaScript, and CSS for processing, enriching, and managing structured TXT and CSV files. 
 
-### Funzionalità Principali
-- **Parsing Intelligente**: Estrazione automatica dei campi basata su uno schema posizionale predefinito.
-- **Validazione in Tempo Reale**: Controllo immediato della lunghezza delle righe e dei singoli campi con segnalazione visiva degli errori.
-- **Arricchimento Dati**: Integrazione di informazioni aggiuntive tramite caricamento di file CSV.
-- **Gestione Esportazioni**: Generazione di file TXT conformi agli standard di lunghezza fissa e file CSV per analisi esterne.
-- **Elaborazione Massiva**: Funzioni di merge e batch processing per gestire grandi volumi di file simultaneamente.
+This tool moves away from fragile "click and pray" scripts by providing a fully interactive user interface to safely manage data pipelines, validate inputs in real-time, and execute bulk operations with visual feedback.
 
----
+## Features
 
-## 1. Funzionalità nel Dettaglio
+* **Massive Bulk Processing:** Automatically process batches of TXT files and enrich them with corresponding CSV data in a single click.
+* **Interactive Data Table:**
+  * **Inline Editing:** Click directly on specific cells (e.g., `EER_ESITO`, `EER_NOTE_RIENTRO`) to edit them. The system automatically handles string-padding to preserve TXT structure upon saving.
+  * **Smart Search & Sort:** Instantly filter rows by Pratica, Codice Fiscale, or Esito, and click column headers to sort data natively in the browser without reloading.
+  * **Compact View:** Toggle a clean view that hides non-essential columns to reduce cognitive load.
+* **Pipeline Management (Merge & Export):** Safely export modified data into structured TXT files, then selectively merge them into final, consolidated batches.
+* **OS Integration:** Open working directories directly from the web browser and execute local PowerShell scripts (like Excel-to-CSV converters) with native buttons.
 
-### Estrazione e Padding
-Il sistema applica automaticamente le regole di formattazione durante il parsing e l'arricchimento:
-- **Campi Alfanumerici (A)**: Se la stringa è più corta del previsto, viene applicato un padding di spazi a destra.
-- **Campi Numerici (S)**: Se il valore è più corto del previsto, viene applicato un padding di zeri a sinistra.
+## Folder Structure & Workflow
 
-### Validazione e Visualizzazione
-- Ogni riga viene analizzata singolarmente. Se una riga o un campo non corrispondono alla lunghezza definita dallo schema, il valore viene evidenziato in **rosso** all'interno della tabella HTML.
-- **Nessun Troncamento**: Il sistema non taglia mai i dati in eccesso, permettendo all'utente di individuare anomalie nel file sorgente.
+The application relies on a strict directory pipeline to keep data organized. If a folder does not exist, the app will create it automatically when needed.
 
----
+* `ORIGINALI/` - Drop your raw, unedited TXT files here for bulk processing.
+* `ESITI/` - Drop your CSV enrichment files here.
+* `DEFINITIVI/` - The destination for fully processed and enriched files after a bulk run.
+* `MODIFICATI/` - When you edit data in the UI and click "Export TXT", the new structured files are saved here.
+* `UNITI/` - The final destination. Files selected from the `MODIFICATI` folder are merged into consolidated files here.
+* `CSV/` - Contains any table data exported as a standard CSV from the dashboard.
 
-## 2. Specifiche dei File di Input
+*Note: The root directory must also contain `Rules.csv` which dictates the parsing and padding schema for the TXT files.*
 
-### File TXT (Dati)
-- **Formato**: Lunghezza fissa (Fixed-width).
-- **Vincolo Rigido**: Ogni riga deve contenere esattamente **4823 caratteri**.
-- **Struttura**: Non sono presenti delimitatori; i campi sono determinati esclusivamente dalla loro posizione (indice di inizio e lunghezza).
+## Getting Started
 
-### File CSV (Arricchimento)
-- **Separatore**: Punto e virgola (`;`).
-- **Codifica**: UTF-8.
-- **Intestazioni Obbligatorie**: Il file deve contenere esattamente queste colonne:
-  - `REESITO_PRATICA_CMP`: ID unico per il match con il file TXT.
-  - `REESITO_ESITO_CONTATTO`: Valore da inserire nel campo `EER_ESITO`.
-  - `REESITO_NOTA`: Valore da inserire nel campo `EER_NOTE_RIENTRO`.
+### Prerequisites
+* A local web server running **PHP 7.4+ or PHP 8.x** (e.g., XAMPP, Laragon, or PHP's built-in server).
+* **Windows OS** is recommended if you intend to use the native folder-opening buttons and the `ExcelToCSV.ps1` PowerShell script.
 
-#### Esempio di file CSV:
-```csv
-REESITO_PRATICA_CMP;REESITO_ESITO_CONTATTO;REESITO_NOTA
-12345;OK;Pratica lavorata con successo
-67890;KO;Cliente non raggiungibile
-```
+### Installation
+1. Clone or extract the project files into your local web server's document root (e.g., `htdocs` or `www`).
+2. Ensure the web server has read/write permissions for the project folder so it can create the pipeline directories (`ORIGINALI`, `ESITI`, etc.).
+3. Place your schema file (`Rules.csv`) in the root directory.
+4. Open your web browser and navigate to `http://localhost/your-folder-name/index.php`.
 
----
+## Usage
 
-## 3. Flusso Operativo
-
-### Fase 1: Caricamento e Visualizzazione
-Caricare il file TXT tramite il modulo di upload. Il sistema elabora il file e genera una tabella HTML. Se vengono rilevate incongruenze nelle lunghezze, le celle interessate appariranno evidenziate.
-
-### Fase 2: Arricchimento e Modifica
-- **Integrazione CSV**: Caricare il file CSV per aggiornare automaticamente i campi di esito e nota sulle pratiche corrispondenti.
-- **Eliminazione Massiva**: È possibile rimuovere righe dalla tabella selezionando le checkbox singole o inserendo una lista di ID separati da punto e virgola (es. `101;102;105`).
-
-### Fase 3: Esportazione
-- **Export CSV**: Scarica l'attuale visualizzazione della tabella in un file CSV (delimitato da `;`).
-- **Export TXT**: Genera un nuovo file testuale in cui ogni riga è ricostruita secondo lo schema originale (4823 caratteri). **Nota**: l'export è bloccato se sono presenti righe con lunghezza totale errata.
-
-### Fase 4: Operazioni Batch
-- **Merge**: Selezione manuale di più file dalla cartella `EditedTXT/` per unirli in un unico file finale.
-- **Elaborazione Massiva**: Esecuzione automatica che preleva tutti i file presenti in `TXT/`, li arricchisce con i dati presenti in `CSV/` e salva i risultati finali nella cartella `DEFINITIVI/`.
-
----
-
-## 4. Output del Sistema
-
-I file generati vengono organizzati come segue:
-- **`EditedTXT/`**: Contiene i file TXT generati dall'esportazione singola o dal merge manuale.
-- **`DEFINITIVI/`**: Destinazione dei file generati tramite elaborazione batch massiva.
-- **Download Diretto**: I file CSV vengono inviati direttamente al browser senza salvataggio sul server.
-
----
-
-## 5. Regole di Validazione e Sicurezza
-
-- **Integrità del Record**: Se la ricostruzione di una riga non produce esattamente 4823 caratteri, il sistema interrompe l'esportazione per prevenire la corruzione dei dati.
-- **Schema Posizionale**: La mappatura dei campi dipende dal file `Rules.csv` presente nella root o dallo schema hardcoded. Ogni scostamento tra il valore `Lungh` e i dati reali viene segnalato.
-- **Gestione Sessione**: I dati caricati e le modifiche (arricchimento/eliminazioni) sono persistenti durante la sessione di lavoro dell'utente.
-
----
-
-## 6. Requisiti di Sistema
-
-- **PHP**: Versione 7.4 o superiore.
-- **Estensioni**: `mbstring` (per la gestione corretta delle lunghezze stringa).
-- **Permessi di Scrittura**: Necessari per le cartelle `EditedTXT/` e `DEFINITIVI/`.
-- **Memoria**: Per file TXT estremamente grandi, regolare il parametro `memory_limit` in `php.ini`.
+1. **Single File Mode:** Use the "Elaborazione Singola" card to manually upload a TXT file, view it in the table, optionally upload a CSV to complete missing columns, and edit the data inline.
+2. **Batch Mode:** Drop your files into `ORIGINALI` and `ESITI`, then click **Lancia Elaborazione Massiva**. The system will process everything and output it to `DEFINITIVI`.
+3. **Merging:** Use the "Unisci i file TXT" card to select files sitting in `MODIFICATI` and bind them together into a single file in `UNITI`.

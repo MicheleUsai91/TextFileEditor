@@ -1,181 +1,136 @@
 <?php
 session_start();
-
 include './functions.php';
 
+$message = $_SESSION['message'] ?? null;
+$messageType = $_SESSION['messageType'] ?? 'success';
+unset($_SESSION['message'], $_SESSION['messageType']);
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['action'])) {
-        
-        if ($_POST['action'] === 'clear_session') {
-            session_destroy();
-            header("Location: " . $_SERVER['PHP_SELF']);
-            exit;
-        }
-
-        if ($_POST['action'] === 'export_csv') {
-            if (isset($_SESSION['rows'], $_SESSION['headers'])) {
-                header('Content-Type: text/csv; charset=utf-8');
-                header('Content-Disposition: attachment; filename="export.csv"');
-                $output = fopen('php://output', 'w');
-                fputcsv($output, $_SESSION['headers'], CSV_SEPARATOR);
-                foreach ($_SESSION['rows'] as $row) {
-                    $rowData = [];
-                    foreach ($_SESSION['headers'] as $header) {
-                        $rowData[] = $row['columns'][$header]['value'] ?? '';
-                    }
-                    fputcsv($output, $rowData, CSV_SEPARATOR);
-                }
-                fclose($output);
-                exit;
+    $action = $_POST['action'] ?? '';
+    $redir = function() { header("Location: " . $_SERVER['PHP_SELF']); exit; };
+    
+    if ($action === 'open_folder' && !empty($_POST['folder_target'])) {
+        $target = $_POST['folder_target'];
+        $allowed = ['ORIGINALI' => CARTELLA_ORIGINALI, 'ESITI' => CARTELLA_ESITI, 'MODIFICATI' => CARTELLA_MODIFICATI, 'UNITI' => CARTELLA_UNITI, 'CSV' => CARTELLA_CSV, 'EXCEL' => CARTELLA_EXCEL];
+        if (isset($allowed[$target])) {
+            $path = realpath(__DIR__ . DIRECTORY_SEPARATOR . $allowed[$target]);
+            if ($path && is_dir($path)) {
+                $os = strtoupper(substr(PHP_OS, 0, 3));
+                if ($os === 'WIN') pclose(popen('start explorer "' . $path . '"', 'r'));
+                elseif ($os === 'DAR') exec('open "' . $path . '" > /dev/null 2>&1 &');
+                else exec('xdg-open "' . $path . '" > /dev/null 2>&1 &');
             }
         }
+        $redir();
+    }
 
-        if ($_POST['action'] === 'export_txt') {
-            if (isset($_SESSION['rows'], $_SESSION['schema'])) {
-                $_SESSION['export_result'] = handleExport($_SESSION['rows'], $_SESSION['schema']);
-            }
-            header("Location: " . $_SERVER['PHP_SELF']);
-            exit;
-        }
+    if ($action === 'clear_session') {
+        session_destroy(); session_start();
+        $_SESSION['message'] = 'Dati cancellati correttamente.';
+        $_SESSION['messageType'] = 'success';
+        $redir();
+    }
 
-        if ($_POST['action'] === 'merge_txt') {
-            $filesToMerge = $_POST['merge_files'] ?? [];
-            $_SESSION['merge_result'] = handleMerge($filesToMerge);
-            header("Location: " . $_SERVER['PHP_SELF']);
-            exit;
-        }
-
-        if ($_POST['action'] === 'delete_manual_ids') {
-            if (isset($_SESSION['rows']) && !empty($_POST['manual_ids'])) {
-                $rawIds = explode(';', $_POST['manual_ids']);
-                $idsToDelete = array_filter(array_map('trim', $rawIds), function($v) { return $v !== ''; });
-                deleteRowsByIds($_SESSION['rows'], $idsToDelete);
-            }
-            header("Location: " . $_SERVER['PHP_SELF']);
-            exit;
-        }
-
-        if ($_POST['action'] === 'delete_selected_rows') {
-            if (isset($_SESSION['rows']) && !empty($_POST['selected_rows'])) {
-                $idsToDelete = array_filter(array_map('trim', $_POST['selected_rows']), function($v) { return $v !== ''; });
-                deleteRowsByIds($_SESSION['rows'], $idsToDelete);
-            }
-            header("Location: " . $_SERVER['PHP_SELF']);
-            exit;
-        }
-
-        if ($_POST['action'] === 'run_batch') {
-            $txtFolderDebug = scanTxtFolderDebug();
-            $_SESSION['txt_folder_debug'] = $txtFolderDebug;
-            console_log($txtFolderDebug, 'TXT FOLDER DEBUG');
-
-            $csvPath = __DIR__ . DIRECTORY_SEPARATOR . 'Rules.csv';
-            if (!file_exists($csvPath)) {
-                $_SESSION['batch_result'] = ['success' => false, 'errors' => ['File Rules.csv non trovato nella cartella.']];
-                header("Location: " . $_SERVER['PHP_SELF']);
-                exit;
-            }
+    if ($action === 'run_ps_script') {
+        $psPath = __DIR__ . DIRECTORY_SEPARATOR . 'ExcelToCSV.ps1';
+        if (is_file($psPath)) {
+            // Executes PowerShell directly. -NoProfile speeds it up, -ExecutionPolicy Bypass allows local scripts.
+            $cmd = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' . $psPath . '"';
+            exec($cmd . ' 2>&1', $output, $return_var);
             
-            $schema = loadSchemaFromCsv($csvPath);
-            $txtDir = __DIR__ . DIRECTORY_SEPARATOR . 'TXT';
-            
-            if (!is_dir($txtDir)) {
-                $_SESSION['batch_result'] = ['success' => false, 'errors' => ['Cartella TXT non trovata.']];
-                header("Location: " . $_SERVER['PHP_SELF']);
-                exit;
-            }
-
-            $bulkDebugLogs = [];
-            $allRows = processBulkTxtFiles($txtDir, $schema, $bulkDebugLogs);
-            $_SESSION['bulk_debug_logs'] = $bulkDebugLogs;
-
-            if (empty($allRows)) {
-                $_SESSION['batch_result'] = ['success' => false, 'errors' => ['Nessun file .txt valido trovato nella cartella TXT.']];
-                header("Location: " . $_SERVER['PHP_SELF']);
-                exit;
-            }
-
-            $csvDir = __DIR__ . DIRECTORY_SEPARATOR . 'CSV';
-            $enrichmentData = loadBulkEnrichmentData($csvDir);
-            
-            $debugLogs = enrichRows($allRows, $enrichmentData, $schema);
-            $exportResult = handleDefinitiviExport($allRows, $schema);
-
-            $_SESSION['schema'] = $schema;
-            $_SESSION['headers'] = array_column($schema, 'Alias');
-            $_SESSION['rows'] = $allRows;
-            $_SESSION['debug_logs'] = $debugLogs;
-
-            if ($exportResult['success']) {
-                $_SESSION['batch_result'] = ['success' => true, 'message' => $exportResult['message']];
+            if ($return_var === 0) {
+                $_SESSION['message'] = 'Script PowerShell eseguito con successo.'; $_SESSION['messageType'] = 'success';
             } else {
-                $_SESSION['batch_result'] = ['success' => false, 'errors' => $exportResult['errors']];
+                $_SESSION['message'] = 'Errore script: ' . implode(' ', $output); $_SESSION['messageType'] = 'error';
             }
-
-            header("Location: " . $_SERVER['PHP_SELF']);
-            exit;
+        } else {
+            $_SESSION['message'] = 'File ExcelToCSV.ps1 non trovato.'; $_SESSION['messageType'] = 'error';
         }
+        $redir();
     }
-
-    // Step 1: Handle TXT Upload
+    
+    // --- CHANGED: CSV now saves to folder instead of downloading ---
+    if ($action === 'export_csv' && isset($_SESSION['rows'], $_SESSION['headers'])) {
+        $dir = __DIR__ . DIRECTORY_SEPARATOR . CARTELLA_CSV;
+        if (!is_dir($dir)) mkdir($dir, 0777, true);
+        $filename = 'export_' . date('Ymd_His') . '.csv';
+        $out = fopen($dir . DIRECTORY_SEPARATOR . $filename, 'w');
+        fputcsv($out, $_SESSION['headers'], CSV_SEPARATOR, '"', '\\');
+        foreach ($_SESSION['rows'] as $r) {
+            $row = []; foreach ($_SESSION['headers'] as $h) $row[] = $r['columns'][$h]['value'] ?? ''; 
+            fputcsv($out, $row, CSV_SEPARATOR, '"', '\\');
+        }
+        fclose($out);
+        $_SESSION['message'] = "CSV salvato in: " . CARTELLA_CSV . "/$filename"; $_SESSION['messageType'] = 'success'; $redir();
+    }
+    
+    if ($action === 'export_txt' && isset($_SESSION['rows'], $_SESSION['schema'])) {
+        $res = handleExport($_SESSION['rows'], $_SESSION['schema']);
+        $_SESSION['message'] = $res['success'] ? $res['message'] : implode(' ', $res['errors']); $_SESSION['messageType'] = $res['success'] ? 'success' : 'error'; $redir();
+    }
+    
+    if ($action === 'merge_txt') {
+        $res = handleMerge($_POST['merge_files'] ?? []);
+        $_SESSION['message'] = $res['success'] ? $res['message'] : implode(' ', $res['errors']); $_SESSION['messageType'] = $res['success'] ? 'success' : 'error'; $redir();
+    }
+    
+    if ($action === 'delete_manual_ids' && isset($_SESSION['rows']) && !empty($_POST['manual_ids'])) {
+        deleteRowsByIds($_SESSION['rows'], preg_split('/\s+/', trim($_POST['manual_ids']), -1, PREG_SPLIT_NO_EMPTY), in_array($_POST['delete_id_type'] ?? '', ['EER_PRATICA_CMP', 'EER_N_PRATICA']) ? $_POST['delete_id_type'] : 'EER_PRATICA_CMP');
+        $_SESSION['message'] = 'Eliminazione completata.'; $_SESSION['messageType'] = 'success'; $redir();
+    }
+    
+    if ($action === 'delete_selected_rows' && isset($_SESSION['rows']) && !empty($_POST['selected_rows'])) {
+        deleteRowsByIds($_SESSION['rows'], array_filter(array_map('trim', $_POST['selected_rows']), 'strlen'), 'EER_PRATICA_CMP');
+        $_SESSION['message'] = 'Righe eliminate.'; $_SESSION['messageType'] = 'success'; $redir();
+    }
+    
+    if ($action === 'run_batch') {
+        $csv = __DIR__ . DIRECTORY_SEPARATOR . 'Rules.csv'; 
+        $txtDir = __DIR__ . DIRECTORY_SEPARATOR . CARTELLA_ORIGINALI;
+        if (!is_file($csv)) { $_SESSION['message'] = 'File Rules.csv non trovato.'; $_SESSION['messageType'] = 'error'; $redir(); }
+        if (!is_dir($txtDir)) { $_SESSION['message'] = 'Cartella ' . CARTELLA_ORIGINALI . ' non trovata.'; $_SESSION['messageType'] = 'error'; $redir(); }
+        
+        $schema = loadSchemaFromCsv($csv); $rows = processBulkTxtFiles($txtDir, $schema);
+        if (!$rows) { $_SESSION['message'] = 'Nessun dato valido in ' . CARTELLA_ORIGINALI; $_SESSION['messageType'] = 'error'; $redir(); }
+        
+        $enrichData = loadBulkEnrichmentData(__DIR__ . DIRECTORY_SEPARATOR . CARTELLA_ESITI);
+        if ($enrichData) enrichRows($rows, $enrichData, $schema);
+        
+        $res = handleDefinitiviExport($rows, $schema);
+        $_SESSION['schema'] = $schema; $_SESSION['headers'] = array_column($schema, 'Alias'); $_SESSION['rows'] = $rows;
+        $_SESSION['message'] = $res['success'] ? $res['message'] : implode(' ', $res['errors']); $_SESSION['messageType'] = $res['success'] ? 'success' : 'error'; $redir();
+    }
+    
     if (isset($_FILES['txt_file']) && $_FILES['txt_file']['error'] === UPLOAD_ERR_OK && $_FILES['txt_file']['size'] > 0) {
-        $csvPath = __DIR__ . DIRECTORY_SEPARATOR . 'Rules.csv';
-        if (file_exists($csvPath)) {
-            $schema = loadSchemaFromCsv($csvPath);
-            $processResult = processTxtFile($_FILES['txt_file']['tmp_name'], $schema);
-            
-            $_SESSION['schema'] = $schema;
-            $_SESSION['headers'] = $processResult['headers'];
-            $_SESSION['rows'] = $processResult['rows'];
-            unset($_SESSION['debug_logs']);
-            unset($_SESSION['txt_folder_debug']);
-            unset($_SESSION['bulk_debug_logs']);
-        }
+        $csv = __DIR__ . DIRECTORY_SEPARATOR . 'Rules.csv';
+        if (is_file($csv)) {
+            $schema = loadSchemaFromCsv($csv); $res = processTxtFile($_FILES['txt_file']['tmp_name'], $schema);
+            $_SESSION['schema'] = $schema; $_SESSION['headers'] = $res['headers']; $_SESSION['rows'] = $res['rows'];
+            $_SESSION['message'] = 'TXT caricato correttamente.'; $_SESSION['messageType'] = 'success';
+        } else { $_SESSION['message'] = 'Rules.csv non trovato.'; $_SESSION['messageType'] = 'error'; }
+        $redir();
     }
-
-    // Step 2: Handle CSV Enrichment Upload
-    if (isset($_FILES['csv_enrich_file']) && $_FILES['csv_enrich_file']['error'] === UPLOAD_ERR_OK && $_FILES['csv_enrich_file']['size'] > 0) {
-        if (isset($_SESSION['rows'], $_SESSION['schema'])) {
-            $enrichmentData = loadEnrichmentDataFromCsv($_FILES['csv_enrich_file']['tmp_name']);
-            $_SESSION['debug_logs'] = enrichRows($_SESSION['rows'], $enrichmentData, $_SESSION['schema']);
-        }
+    
+    if (isset($_FILES['csv_enrich_file'], $_SESSION['rows'], $_SESSION['schema']) && $_FILES['csv_enrich_file']['error'] === UPLOAD_ERR_OK && $_FILES['csv_enrich_file']['size'] > 0) {
+        enrichRows($_SESSION['rows'], loadEnrichmentDataFromCsv($_FILES['csv_enrich_file']['tmp_name']), $_SESSION['schema']);
+        $_SESSION['message'] = 'Dati CSV applicati.'; $_SESSION['messageType'] = 'success'; $redir();
     }
-
-    header("Location: " . $_SERVER['PHP_SELF']);
-    exit;
+    
+    $redir();
 }
 
 $hasData = isset($_SESSION['rows']);
 $headers = $_SESSION['headers'] ?? [];
 $rows = $_SESSION['rows'] ?? [];
-$debugLogs = $_SESSION['debug_logs'] ?? [];
 
-$exportResult = $_SESSION['export_result'] ?? null;
-unset($_SESSION['export_result']);
+// Folder Content Scanners mapped to constants
+$modificatiDir = __DIR__ . DIRECTORY_SEPARATOR . CARTELLA_MODIFICATI;
+$originaliDir  = __DIR__ . DIRECTORY_SEPARATOR . CARTELLA_ORIGINALI;
+$esitiDir      = __DIR__ . DIRECTORY_SEPARATOR . CARTELLA_ESITI;
+$unitiDir      = __DIR__ . DIRECTORY_SEPARATOR . CARTELLA_UNITI;
 
-$mergeResult = $_SESSION['merge_result'] ?? null;
-unset($_SESSION['merge_result']);
-
-$batchResult = $_SESSION['batch_result'] ?? null;
-unset($_SESSION['batch_result']);
-
-$txtFolderDebug = $_SESSION['txt_folder_debug'] ?? null;
-$bulkDebugLogs = $_SESSION['bulk_debug_logs'] ?? null;
-
-$editedTxtDir = __DIR__ . DIRECTORY_SEPARATOR . 'EditedTXT';
-$availableTxtFiles = [];
-if (is_dir($editedTxtDir)) {
-    $files = glob($editedTxtDir . DIRECTORY_SEPARATOR . '*.txt');
-    if ($files !== false) {
-        foreach ($files as $file) {
-            $availableTxtFiles[] = basename($file);
-        }
-    }
-}
-
-// if ($txtFolderDebug) {
-//     console_log($txtFolderDebug, 'TXT FOLDER DEBUG (Render)');
-// }
-// if ($bulkDebugLogs) {
-//     console_log($bulkDebugLogs, 'PROCESS BULK TXT DEBUG (Render)');
-// }
+$availableTxtFiles = is_dir($modificatiDir) ? array_map('basename', glob($modificatiDir . DIRECTORY_SEPARATOR . '*.[tT][xX][tT]') ?: []) : [];
+$batchTxtFiles = is_dir($originaliDir) ? array_map('basename', glob($originaliDir . DIRECTORY_SEPARATOR . '*.[tT][xX][tT]') ?: []) : [];
+$batchCsvFiles = is_dir($esitiDir) ? array_map('basename', glob($esitiDir . DIRECTORY_SEPARATOR . '*.[cC][sS][vV]') ?: []) : [];
+$mergedTxtFiles    = is_dir($unitiDir) ? array_map('basename', glob($unitiDir . DIRECTORY_SEPARATOR . '*.[tT][xX][tT]') ?: []) : [];
